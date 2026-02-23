@@ -1,12 +1,18 @@
-MRuby::Build.new do |conf|
-  # load specific toolchain settings
-
-  # Gets set by the VS command prompts.
+def detect_toolchain
   if ENV['VisualStudioVersion'] || ENV['VSINSTALLDIR']
-    toolchain :visualcpp
+    :visualcpp
   else
-    toolchain :gcc
+    cc = ENV['CC'] || 'cc'
+    if `#{cc} --version 2>&1` =~ /clang/i
+      :clang
+    else
+      :gcc
+    end
   end
+end
+
+MRuby::Build.new do |conf|
+  toolchain detect_toolchain
 
   enable_debug
 
@@ -85,14 +91,7 @@ MRuby::Build.new do |conf|
 end
 
 MRuby::Build.new('host-debug') do |conf|
-  # load specific toolchain settings
-
-  # Gets set by the VS command prompts.
-  if ENV['VisualStudioVersion'] || ENV['VSINSTALLDIR']
-    toolchain :visualcpp
-  else
-    toolchain :gcc
-  end
+  toolchain detect_toolchain
 
   enable_debug
 
@@ -110,12 +109,7 @@ MRuby::Build.new('host-debug') do |conf|
 end
 
 MRuby::Build.new('test') do |conf|
-  # Gets set by the VS command prompts.
-  if ENV['VisualStudioVersion'] || ENV['VSINSTALLDIR']
-    toolchain :visualcpp
-  else
-    toolchain :gcc
-  end
+  toolchain detect_toolchain
 
   enable_debug
   conf.enable_bintest

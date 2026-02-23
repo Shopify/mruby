@@ -24,7 +24,7 @@ MRuby::Toolchain.new(:gcc) do |conf, _params|
   conf.linker do |linker|
     linker.command = ENV['LD'] || 'gcc'
     linker.flags = [ENV['LDFLAGS'] || %w()]
-    linker.libraries = %w(m)
+    linker.libraries = RUBY_PLATFORM =~ /darwin/ ? %w() : %w(m)
     linker.library_paths = []
     linker.option_library = '-l%s'
     linker.option_library_path = '-L%s'

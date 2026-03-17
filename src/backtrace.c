@@ -292,15 +292,45 @@ mrb_print_backtrace(mrb_state *mrb)
 
 #endif
 
+MRB_API mrb_value mrb_restore_backtrace(mrb_state *mrb);
+
 MRB_API mrb_value
 mrb_exc_backtrace(mrb_state *mrb, mrb_value self)
 {
-  mrb_value ary;
+  mrb_sym attr_name;
+  mrb_value backtrace;
 
-  ary = mrb_ary_new(mrb);
-  exc_output_backtrace(mrb, mrb_obj_ptr(self), get_backtrace_i, (void*)mrb_ary_ptr(ary));
+  /*
+  ** Return the exception's backtrace without walking the live callinfo
+  ** stack. The callinfo entries referenced by the exception's saved ciidx
+  ** may have been unwound by the time a C caller asks for the backtrace,
+  ** leaving stale ci->proc pointers to RProc objects that GC has since
+  ** reclaimed (they are not marked above c->ci). Walking those entries
+  ** would be a use-after-free.
+  **
+  ** Preferred sources, in order:
+  **   1. The "backtrace" ivar, if already materialized (e.g. by
+  **      Exception#backtrace on the Ruby side).
+  **   2. mrb->backtrace.entries — the snapshot mrb_save_backtrace()
+  **      captured at raise time, while callinfo was still valid.
+  ** If neither is available, return an empty array rather than risk
+  ** dereferencing freed memory.
+  */
+  attr_name = mrb_intern_lit(mrb, "backtrace");
+  backtrace = mrb_iv_get(mrb, self, attr_name);
+  if (!mrb_nil_p(backtrace)) {
+    return backtrace;
+  }
 
-  return ary;
+  if (mrb_obj_ptr(self) == mrb->backtrace.exc && mrb->backtrace.n > 0) {
+    backtrace = mrb_restore_backtrace(mrb);
+    mrb->backtrace.n = 0;
+    mrb->backtrace.exc = 0;
+    mrb_iv_set(mrb, self, attr_name, backtrace);
+    return backtrace;
+  }
+
+  return mrb_ary_new(mrb);
 }
 
 MRB_API mrb_value
